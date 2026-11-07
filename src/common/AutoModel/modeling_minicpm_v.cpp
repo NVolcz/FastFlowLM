@@ -418,7 +418,7 @@ std::string MiniCPM_V::decode(chat_meta_info_t& meta_info, int length_limit, std
 
     std::cout << std::endl;
     if (this->log_raw_output) {
-        header_print("FLM", "Model RAW Output: \n" + result);
+        this->_print_raw_output(result);
     }
     return result;
 }

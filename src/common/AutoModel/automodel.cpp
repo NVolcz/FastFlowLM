@@ -9,9 +9,12 @@
 #include "chat/chat_continue.hpp"
 #include "utils/npu_platform.hpp"
 
+#include <chrono>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <limits>
+#include <mutex>
 #include <numeric>
 #include <stdexcept>
 
@@ -720,11 +723,71 @@ buffer<bf16> AutoModel::_chunked_insert(chat_meta_info_t& meta_info, std::vector
     return y;
 }
 
+namespace {
+/// \brief append one entry to the file named by FLM_LOG_PROMPT
+/// \note unset or empty leaves logging off; the mutex keeps concurrent
+///       requests from interleaving entries
+void append_to_prompt_log(const std::string& header, const std::string& text) {
+    static const char* path = std::getenv("FLM_LOG_PROMPT");
+    if (path == nullptr || path[0] == '\0') {
+        return;
+    }
+    static std::mutex mutex;
+    static std::string last_prompt;
+    static std::string last_output;
+    std::lock_guard<std::mutex> lock(mutex);
+    std::ofstream file(path, std::ios::app);
+    const auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count();
+    file << "===== FLM " << header << " " << now;
+    if (header != "prompt") {
+        file << " =====\n" << text << "\n";
+        last_output = text;
+        return;
+    }
+    // A client resends the whole conversation on every request, so a prompt
+    // usually starts with the previous one; log only what it adds.
+    const bool continues = !last_prompt.empty() && text.size() > last_prompt.size() &&
+                           text.compare(0, last_prompt.size(), last_prompt) == 0;
+    if (!continues) {
+        file << " =====\n" << text << "\n";
+    } else {
+        std::string added = text.substr(last_prompt.size());
+        // What it adds usually starts with the end of the model's last output, such
+        // as a tool call sent back without its reasoning; skip the longest such
+        // overlap, unless it is too short to be more than a coincidence.
+        constexpr size_t MIN_OVERLAP = 20;
+        size_t overlap = 0;
+        for (size_t start = 0; start + MIN_OVERLAP <= last_output.size(); start++) {
+            const size_t length = last_output.size() - start;
+            if (length <= added.size() && last_output.compare(start, length, added, 0, length) == 0) {
+                overlap = length;
+                break;
+            }
+        }
+        file << " (continues the previous prompt after " << last_prompt.size() << " characters";
+        if (overlap > 0) {
+            file << ", skips " << overlap << " characters repeating the output above";
+        }
+        file << ") =====\n" << added.substr(overlap) << "\n";
+    }
+    last_prompt = text;
+    last_output.clear();
+}
+}
+
+void AutoModel::_print_raw_output(const std::string& result) {
+    header_print("FLM", "Model RAW Output: \n" + result);
+    append_to_prompt_log("output", result);
+}
+
 std::string AutoModel::_render_chat_template(minja::chat_template_inputs& inputs, bool continue_final_message,
                                              const minja::chat_template_options& options) {
     if (!continue_final_message) {
         inputs.add_generation_prompt = true;
-        return this->chat_tmpl->apply(inputs, options);
+        std::string prompt = this->chat_tmpl->apply(inputs, options);
+        append_to_prompt_log("prompt", prompt);
+        return prompt;
     }
     if (inputs.messages.empty() || inputs.messages.back().value("role", "") != "assistant") {
         throw ModelRequestError(400, false, "continue_final_message requires the last message to have role \"assistant\"",
@@ -740,6 +803,7 @@ std::string AutoModel::_render_chat_template(minja::chat_template_inputs& inputs
         chat_continued continued = chat_continue_prompt(render, inputs.messages);
         // the output parser looks for an open reasoning block in this turn only, not in what the user wrote earlier
         this->continued_turn_ = std::move(continued.turn);
+        append_to_prompt_log("prompt", continued.prompt);
         return continued.prompt;
     } catch (const std::invalid_argument& e) {
         throw ModelRequestError(400, false, e.what(), "invalid_request_error");
@@ -1033,7 +1097,7 @@ std::string AutoModel::_shared_generate(chat_meta_info_t& meta_info, int length_
     }
     if (this->log_raw_output) {
         std::cout << std::endl;
-        header_print("FLM", "Model RAW Output: \n" + result);
+        this->_print_raw_output(result);
     }
     return result;
 }

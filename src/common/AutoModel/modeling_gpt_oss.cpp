@@ -273,7 +273,7 @@ std::string GPT_OSS::generate(chat_meta_info_t& meta_info, int length_limit, std
         header_print("WARNING", "Max length reached, stopping generation...");
     }
     std::cout << std::endl;
-    header_print("FLM", "Model RAW Output: \n" + result);
+    this->_print_raw_output(result);
 
     os << "<|end|>" << std::flush;
     return "<|start|>assistant" + result + "<|end|>";

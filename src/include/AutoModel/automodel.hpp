@@ -425,6 +425,8 @@ protected:
 	///         because the template rewrote it
 	std::string _render_chat_template(minja::chat_template_inputs& inputs, bool continue_final_message,
 	                                  const minja::chat_template_options& options = minja::chat_template_options());
+	/// \brief Print a turn's raw output, special tokens included, and append it to FLM_LOG_PROMPT
+	void _print_raw_output(const std::string& result);
 	/// \brief The continued assistant turn of the last prompt rendered with continue_final_message:
 	///        the template's opening of the turn and the message's text
 	/// \note _begin_turn() hands it to the output parser for such a request, which renders it just before.

@@ -285,7 +285,7 @@ std::string Qwen3::decode(chat_meta_info_t& meta_info, int length_limit, std::os
         header_print("WARNING", "Max length reached, stopping generation...");
     }
     std::cout << std::endl;
-    header_print("FLM", "Model RAW Output: \n" + result);
+    this->_print_raw_output(result);
     return result;
 }
 
@@ -605,7 +605,7 @@ std::string Qwen3_TK::generate(chat_meta_info_t& meta_info, int length_limit, st
         header_print("WARNING", "Max length reached, stopping generation...");
     }
     std::cout << std::endl;
-    header_print("FLM", "Model RAW Output: \n" + result);
+    this->_print_raw_output(result);
     return result;
 }
 
@@ -787,7 +787,7 @@ std::string DeepSeek_r1_0528_8b::generate(chat_meta_info_t& meta_info, int lengt
         header_print("WARNING", "Max length reached, stopping generation...");
     }
     std::cout << std::endl;
-    header_print("FLM", "Model RAW Output: \n" + result);
+    this->_print_raw_output(result);
     return result;
 }
 

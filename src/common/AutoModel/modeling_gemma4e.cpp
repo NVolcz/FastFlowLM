@@ -248,7 +248,7 @@ std::string Gemma4e_Flash::generate(chat_meta_info_t& meta_info, int length_limi
         header_print("WARNING", "Max length reached, stopping generation...");
     }
     std::cout << std::endl;
-    header_print("FLM", "Model RAW Output: \n" + result);
+    this->_print_raw_output(result);
 
     // Single-turn: do not checkpoint here — the only checkpoint that matters
     // is the pinned system prefix, which _pin_system_prefix() already owns.
@@ -872,7 +872,7 @@ std::string Gemma4e::generate(chat_meta_info_t& meta_info, int length_limit, std
         header_print("WARNING", "Max length reached, stopping generation...");
     }
     std::cout << std::endl;
-    header_print("FLM", "Model RAW Output: \n" + result);
+    this->_print_raw_output(result);
     
     if (reason != EOT_DETECTED) {
         // Cut short after sampling its last token: no engine has run that one,
